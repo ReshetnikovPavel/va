@@ -1,0 +1,72 @@
+model_name: ada_en
+
+target_phrases:
+  - "Ada"
+  - "Ada!"
+  - "Ada?"
+
+custom_negative_phrases:
+  - "a da"
+  - "a day"
+  - "at a"
+  - "Edda"
+  - "Eda"
+  - "Eddie"
+  - "Ida"
+  - "Aida"
+  - "Adam"
+  - "Ada's"
+  - "Addie"
+  - "add a"
+  - "I do"
+  - "I'd a"
+  - "Atta"
+  - "Abby"
+  - "Atlas"
+  - "Ava"
+  - "Eva"
+  - "Anya"
+  - "oh dear"
+  - "I dare"
+  - "idea"
+  - "adder"
+  - "all dad"
+  - "a doll"
+  - "dad"
+  - "da da"
+  - "Oh da"
+  - "You da"
+
+n_samples: 1000
+n_samples_val: 200
+n_background_samples: 200
+n_background_samples_val: 40
+tts_batch_size: 50
+tts_backend: piper_vits
+
+data_dir: ./data
+output_dir: ./output
+
+augmentation:
+  clip_duration: 2.0
+  batch_size: 16
+  rounds: 1
+  background_paths:
+    - ./data/wakeword/backgrounds
+  rir_paths:
+    - ./data/wakeword/rirs
+
+model:
+  model_type: conv_attention
+  model_size: small
+
+steps: 20000
+learning_rate: 1e-4
+weight_decay: 1e-2
+label_smoothing: 0.05
+max_negative_weight: 1500.0
+target_fp_per_hour: 0.2
+batch_n_per_class:
+  positive: 50
+  adversarial_negative: 50
+  background_noise: 50

@@ -1,0 +1,80 @@
+model_name: ada
+
+target_phrases:
+  - "Ада"
+  - "Ада!"
+  - "Ада, Ада"
+  - "Ада-ада"
+
+custom_negative_phrases:
+  - "а да"
+  - "а, да"
+  - "ада"
+  - "ада-а"
+  - "ты да"
+  - "а ты да"
+  - "да"
+  - "а"
+  - "аха"
+  - "аль"
+  - "алло"
+  - "ай"
+  - "ау"
+  - "ой"
+  - "эй"
+  - "ах"
+  - "ах да"
+  - "а да, а да"
+  - "а дай"
+  - "а ду"
+  - "а до"
+  - "а ди"
+  - "аду"
+  - "ади"
+  - "гада"
+  - "надо"
+  - "адаптировать"
+  - "адам"
+  - "Эда"
+  - "Ида"
+  - "ата"
+  - "ада, ида"
+  - "вот да"
+  - "а так"
+  - "а ты, а"
+  - "а он, а"
+  - "а она"
+
+n_samples: 3000
+n_samples_val: 500
+n_background_samples: 200
+n_background_samples_val: 40
+tts_batch_size: 50
+tts_backend: piper_vits
+
+data_dir: ./data
+output_dir: ./output
+
+augmentation:
+  clip_duration: 2.0
+  batch_size: 16
+  rounds: 1
+  background_paths:
+    - ./data/wakeword/backgrounds
+  rir_paths:
+    - ./data/wakeword/rirs
+
+model:
+  model_type: conv_attention
+  model_size: small
+
+steps: 20000
+learning_rate: 1e-4
+weight_decay: 1e-2
+label_smoothing: 0.05
+max_negative_weight: 1500.0
+target_fp_per_hour: 0.2
+batch_n_per_class:
+  positive: 50
+  adversarial_negative: 50
+  background_noise: 50
