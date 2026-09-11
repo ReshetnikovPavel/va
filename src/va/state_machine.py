@@ -7,9 +7,9 @@ from pathlib import Path
 
 import numpy as np
 import sounddevice as sd
+from faster_whisper import WhisperModel
 from livekit.wakeword import WakeWordModel
 from piper import PiperVoice
-from pywhispercpp.model import Model as Whisper
 from silero_vad_notorch.model import load_silero_vad
 from silero_vad_notorch.utils_vad import VADIterator
 
@@ -22,6 +22,7 @@ class State(enum.Enum):
 
 
 TICK_SECS = 0.1
+LISTENING_WAIT_SECS = 2
 SAMPLE_RATE = 16000
 CHANNELS = 1
 BLOCK_SIZE = 512
@@ -50,18 +51,16 @@ def _predict_wakeword(model: WakeWordModel, samples: deque[np.ndarray]) -> bool:
     return False
 
 
-async def _transcribe(stt: Whisper, lang_detect: Whisper, audio: np.ndarray) -> str:
-    lang = (await asyncio.to_thread(lang_detect.auto_detect_language, audio))[0][0]
-    segments = await asyncio.to_thread(
+async def _transcribe(stt: WhisperModel, audio: np.ndarray) -> str:
+    segments, _info = await asyncio.to_thread(
         stt.transcribe,
         audio,
-        single_segment=True,
-        translate=False,
-        language=lang,
+        language="ru",
+        beam_size=1,
+        condition_on_previous_text=False,
+        vad_filter=False,
     )
-    if segments:
-        return segments[0].text
-    return ""
+    return "".join(s.text for s in segments)
 
 
 async def _say(tts: PiperVoice, text: str) -> None:
@@ -82,25 +81,11 @@ async def run() -> None:
         ]
     )
     vad = VADIterator(load_silero_vad(), min_silence_duration_ms=800, speech_pad_ms=300)
-    stt = Whisper(
-        str(
-            Path.home()
-            / ".local"
-            / "share"
-            / "pywhispercpp"
-            / "models"
-            / "ggml-base.bin"
-        )
-    )
-    lang_detect = Whisper(
-        str(
-            Path.home()
-            / ".local"
-            / "share"
-            / "pywhispercpp"
-            / "models"
-            / "ggml-tiny.bin"
-        )
+    stt = WhisperModel(
+        "medium",
+        device="cpu",
+        compute_type="int8",
+        cpu_threads=8,
     )
     tts = PiperVoice.load(Path("models", "piper", "ru_RU-irina-medium.onnx"))
 
@@ -108,6 +93,7 @@ async def run() -> None:
     vad_samples = []
     recording = []
     is_recording = False
+    listening_start = None
 
     def callback(
         indata: np.ndarray,
@@ -134,6 +120,7 @@ async def run() -> None:
         stt_task = None
         tts_task = None
 
+        print(state)
         while True:
             start_time = time.monotonic()
 
@@ -142,29 +129,35 @@ async def run() -> None:
             match state:
                 case State.Idle:
                     if is_wakeword:
-                        is_recording = True
+                        listening_start = time.monotonic()
                         state = State.Listening
                         print(state)
 
                 case State.Listening:
-                    for sample in vad_samples:
-                        vad_result = vad(sample.T)
-                        if vad_result:
-                            if "start" in vad_result:
-                                print("start")
-                                is_recording = True
-                            elif "end" in vad_result:
-                                print("end")
-                                is_recording = False
-
-                    if recording and not is_recording:
-                        rec = np.concat(recording).flatten()
-                        recording.clear()
-                        stt_task = asyncio.create_task(
-                            _transcribe(stt, lang_detect, rec)
-                        )
-                        state = State.Processing
+                    assert listening_start is not None
+                    if (
+                        not recording
+                        and time.monotonic() - listening_start > LISTENING_WAIT_SECS
+                    ):
+                        state = State.Idle
                         print(state)
+                    else:
+                        for sample in vad_samples:
+                            vad_result = vad(sample.T)
+                            if vad_result:
+                                if "start" in vad_result:
+                                    print("start")
+                                    is_recording = True
+                                elif "end" in vad_result:
+                                    print("end")
+                                    is_recording = False
+
+                        if recording and not is_recording:
+                            rec = np.concat(recording).flatten()
+                            recording.clear()
+                            stt_task = asyncio.create_task(_transcribe(stt, rec))
+                            state = State.Processing
+                            print(state)
 
                 case State.Processing:
                     assert stt_task is not None

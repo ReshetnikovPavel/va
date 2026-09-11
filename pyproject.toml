@@ -8,10 +8,10 @@ authors = [
 ]
 requires-python = ">=3.14"
 dependencies = [
+    "faster-whisper>=1.2.1",
     "livekit-wakeword>=0.2.1",
     "numpy>=2.5.2",
     "piper-tts>=1.8.0",
-    "pywhispercpp>=1.5.1",
     "silero-vad-notorch>=6.2.1.1",
     "sounddevice>=0.5.6",
     "soundfile>=0.14.0",
