@@ -60,6 +60,26 @@ def remove_punctuation(s: str) -> str:
     return _PUNCTUATION_RE.sub("", s)
 
 
+_LATIN_PHRASE_RE = re.compile(
+    r"[A-Za-z\u00C0-\u017F]+(?:[\s'\-/&.][A-Za-z\u00C0-\u017F]+)*"
+)
+
+
+def split_by_script(text: str) -> list[tuple[str, str]]:
+    parts: list[tuple[str, str]] = []
+    pos = 0
+    for m in _LATIN_PHRASE_RE.finditer(text):
+        if m.start() > pos:
+            gap = text[pos : m.start()]
+            parts.append(("ru" if is_cyrillic(gap) else "en", gap))
+        parts.append(("en", m.group()))
+        pos = m.end()
+    if pos < len(text):
+        tail = text[pos:]
+        parts.append(("ru" if is_cyrillic(tail) else "en", tail))
+    return parts
+
+
 def decline(word: str, case: Case) -> str:
     if not word or not is_cyrillic(word):
         return word

@@ -15,7 +15,7 @@ from silero_vad_notorch.utils_vad import VADIterator
 
 from va.actions import ActionError, AssistantResponse
 
-from . import intent
+from . import intent, nlp
 from .actions.music import player
 from .actions.weather import get_weather
 
@@ -69,14 +69,16 @@ async def _transcribe(stt: WhisperModel, audio: np.ndarray) -> str:
     return "".join(s.text for s in segments)
 
 
-async def _say(tts: PiperVoice, text: str) -> None:
-    for chunk in await asyncio.to_thread(tts.synthesize, text):
-        await asyncio.to_thread(
-            sd.play,
-            chunk.audio_int16_array,
-            samplerate=chunk.sample_rate,
-            blocking=True,
-        )
+async def _say(ru_tts: PiperVoice, en_tts: PiperVoice, text: str) -> None:
+    for language, part in nlp.split_by_script(text):
+        tts = en_tts if language == "en" else ru_tts
+        for chunk in await asyncio.to_thread(tts.synthesize, part):
+            await asyncio.to_thread(
+                sd.play,
+                chunk.audio_int16_array,
+                samplerate=chunk.sample_rate,
+                blocking=True,
+            )
 
 
 async def _execute_action(
@@ -123,7 +125,8 @@ async def run() -> None:
         compute_type="int8",
         cpu_threads=8,
     )
-    tts = PiperVoice.load(Path("models", "piper", "ru_RU-irina-medium.onnx"))
+    ru_tts = PiperVoice.load(Path("models", "piper", "ru_RU-irina-medium.onnx"))
+    en_tts = PiperVoice.load(Path("models", "piper", "en_US-amy-medium.onnx"))
 
     wakeword_samples = deque()
     vad_samples = []
@@ -217,7 +220,7 @@ async def run() -> None:
 
                         if response is not None:
                             print(response.display)
-                            tts_task = asyncio.create_task(_say(tts, response.spoken))
+                            tts_task = asyncio.create_task(_say(ru_tts, en_tts, response.spoken))
                             state = State.Speaking
                             print(state)
                         else:
