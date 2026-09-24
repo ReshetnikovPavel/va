@@ -10,6 +10,7 @@ requires-python = ">=3.14"
 dependencies = [
     "faster-whisper>=1.2.1",
     "livekit-wakeword>=0.2.1",
+    "natasha>=1.6.0",
     "num2words>=0.5.14",
     "numpy>=2.5.2",
     "piper-tts>=1.8.0",

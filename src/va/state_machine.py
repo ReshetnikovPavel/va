@@ -79,10 +79,12 @@ async def _say(tts: PiperVoice, text: str) -> None:
         )
 
 
-async def _execute_action(action: intent.Intent) -> AssistantResponse | None:
+async def _execute_action(
+    action: intent.Intent, data: dict
+) -> AssistantResponse | None:
     match action:
         case intent.Intent.Weather:
-            return await get_weather()
+            return await get_weather(data["location"])
         case intent.Intent.PauseMusic:
             return player.pause_music()
         case intent.Intent.PlayMusic:
@@ -103,7 +105,6 @@ async def _execute_action(action: intent.Intent) -> AssistantResponse | None:
             return AssistantResponse("Я глупая")
         case unhandled:
             raise RuntimeError(f"Unknown intent: `{unhandled}`")
-
 
 
 async def run() -> None:
@@ -204,7 +205,8 @@ async def run() -> None:
 
                         try:
                             action = intent.classify(transcribed)
-                            response = await _execute_action(action)
+                            data = intent.extract_data(transcribed, action)
+                            response = await _execute_action(action, data)
                         except ActionError as e:
                             print(e)
                             response = AssistantResponse(

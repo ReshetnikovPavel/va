@@ -1,6 +1,8 @@
 import difflib
 import enum
 
+from va import nlp
+
 
 class Intent(enum.Enum):
     Unknown = enum.auto()
@@ -13,6 +15,7 @@ class Intent(enum.Enum):
     VolumeDown = enum.auto()
     VolumeMuchUp = enum.auto()
     VolumeMuchDown = enum.auto()
+
 
 KEYWORDS = {
     Intent.Weather: ["погода", "weather"],
@@ -42,3 +45,12 @@ def classify(s: str) -> Intent:
                 return intent
     print(Intent.Unknown)
     return Intent.Unknown
+
+
+def extract_data(s: str, intent: Intent) -> dict:
+    match intent:
+        case Intent.Weather:
+            locations = nlp.extract_locations(s)
+            location = locations[0] if locations else None
+            return {"location": location}
+    return {}
