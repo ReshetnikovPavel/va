@@ -7,11 +7,15 @@ class Intent(enum.Enum):
     Weather = enum.auto()
     PauseMusic = enum.auto()
     PlayMusic = enum.auto()
+    NextTrack = enum.auto()
+    PreviousTrack = enum.auto()
 
 KEYWORDS = {
     Intent.Weather: ["погода", "weather"],
     Intent.PauseMusic: ["пауза", "pause"],
     Intent.PlayMusic: ["включи", "play"],
+    Intent.NextTrack: ["следующий", "дальше", "next"],
+    Intent.PreviousTrack: ["предыдущий", "назад", "previous"],
 }
 SIMILARITY_THRESHOLD = 0.7
 

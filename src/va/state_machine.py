@@ -16,7 +16,12 @@ from silero_vad_notorch.utils_vad import VADIterator
 from va.actions import ActionError
 
 from . import intent
-from .actions.music.player import pause_music, play_music
+from .actions.music.player import (
+    next_track,
+    pause_music,
+    play_music,
+    previous_track,
+)
 from .actions.weather.get import get_weather
 
 
@@ -87,6 +92,10 @@ async def _execute_action(action: intent.Intent) -> str | None:
             return pause_music()
         case intent.Intent.PlayMusic:
             return play_music()
+        case intent.Intent.NextTrack:
+            return next_track()
+        case intent.Intent.PreviousTrack:
+            return previous_track()
         case intent.Intent.Unknown:
             return "Я глупая"
         case unhandled:
