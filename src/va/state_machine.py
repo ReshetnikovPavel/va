@@ -13,6 +13,12 @@ from piper import PiperVoice
 from silero_vad_notorch.model import load_silero_vad
 from silero_vad_notorch.utils_vad import VADIterator
 
+from va.actions import ActionError
+
+from . import intent
+from .actions.music.player import pause_music, play_music
+from .actions.weather.get import get_weather
+
 
 class State(enum.Enum):
     Idle = enum.auto()
@@ -71,6 +77,21 @@ async def _say(tts: PiperVoice, text: str) -> None:
             samplerate=chunk.sample_rate,
             blocking=True,
         )
+
+
+async def _execute_action(action: intent.Intent) -> str | None:
+    match action:
+        case intent.Intent.Weather:
+            return await get_weather()
+        case intent.Intent.PauseMusic:
+            return pause_music()
+        case intent.Intent.PlayMusic:
+            return play_music()
+        case intent.Intent.Unknown:
+            return "Я глупая"
+        case unhandled:
+            raise RuntimeError(f"Unknown intent: `{unhandled}`")
+
 
 
 async def run() -> None:
@@ -161,16 +182,37 @@ async def run() -> None:
 
                 case State.Processing:
                     assert stt_task is not None
-                    if stt_task.done():
+                    if is_wakeword:
+                        stt_task.cancel()
+                        state = state.Idle
+                        print(state)
+                    elif stt_task.done():
                         transcribed = stt_task.result()
                         print(transcribed)
-                        tts_task = asyncio.create_task(_say(tts, transcribed))
-                        state = State.Speaking
-                        print(state)
+
+                        try:
+                            action = intent.classify(transcribed)
+                            response = await _execute_action(action)
+                        except ActionError as e:
+                            print(e)
+                            response = "Произошла какая-то ошибка, простите"
+                        print(response)
+
+                        if response is not None:
+                            tts_task = asyncio.create_task(_say(tts, response))
+                            state = State.Speaking
+                            print(state)
+                        else:
+                            state = State.Idle
+                            print(state)
 
                 case State.Speaking:
                     assert tts_task is not None
-                    if tts_task.done():
+                    if is_wakeword:
+                        tts_task.cancel()
+                        state = state.Idle
+                        print(state)
+                    elif tts_task.done():
                         state = State.Idle
                         print(state)
 

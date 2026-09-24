@@ -1,0 +1,2 @@
+class ActionError(RuntimeError):
+    pass
