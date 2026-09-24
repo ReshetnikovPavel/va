@@ -1,5 +1,6 @@
 from typing import Literal
 
+from num2words import num2words as _num2words
 from pymorphy3.analyzer import MorphAnalyzer
 
 # Падежи русского языка (граммемы pymorphy).
@@ -50,3 +51,9 @@ def decline(word: str, case: Case) -> str:
     if inflected is None:
         return word
     return restore_case(word, inflected.word)
+
+
+def number_to_words(n: int, case: Case) -> str:
+    sign = "минус " if n < 0 else ""
+    tokens = _num2words(abs(n), lang="ru").split()
+    return sign + " ".join(decline(token, case) for token in tokens)

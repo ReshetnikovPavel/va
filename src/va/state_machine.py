@@ -13,7 +13,7 @@ from piper import PiperVoice
 from silero_vad_notorch.model import load_silero_vad
 from silero_vad_notorch.utils_vad import VADIterator
 
-from va.actions import ActionError
+from va.actions import ActionError, AssistantResponse
 
 from . import intent
 from .actions.music.player import (
@@ -84,7 +84,7 @@ async def _say(tts: PiperVoice, text: str) -> None:
         )
 
 
-async def _execute_action(action: intent.Intent) -> str | None:
+async def _execute_action(action: intent.Intent) -> AssistantResponse | None:
     match action:
         case intent.Intent.Weather:
             return await get_weather()
@@ -97,7 +97,7 @@ async def _execute_action(action: intent.Intent) -> str | None:
         case intent.Intent.PreviousTrack:
             return previous_track()
         case intent.Intent.Unknown:
-            return "Я глупая"
+            return AssistantResponse("Я глупая")
         case unhandled:
             raise RuntimeError(f"Unknown intent: `{unhandled}`")
 
@@ -204,11 +204,13 @@ async def run() -> None:
                             response = await _execute_action(action)
                         except ActionError as e:
                             print(e)
-                            response = "Произошла какая-то ошибка, простите"
-                        print(response)
+                            response = AssistantResponse(
+                                "Произошла какая-то ошибка, простите"
+                            )
 
                         if response is not None:
-                            tts_task = asyncio.create_task(_say(tts, response))
+                            print(response.display)
+                            tts_task = asyncio.create_task(_say(tts, response.spoken))
                             state = State.Speaking
                             print(state)
                         else:

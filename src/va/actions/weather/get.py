@@ -3,9 +3,10 @@ import json
 import logging
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 
 from va import nlp
-from va.actions import ActionError
+from va.actions import ActionError, AssistantResponse
 
 logger = logging.getLogger(__name__)
 
@@ -84,12 +85,6 @@ RAIN_CODES = {
 }
 
 
-def _format_temp(temp: int) -> str:
-    if temp < 0:
-        return f"минус {abs(temp)}"
-    return str(temp)
-
-
 def _weather_desc(cur: dict) -> str:
     code = int(cur["weatherCode"])
     if code in WEATHER_CODES:
@@ -120,7 +115,9 @@ def _rain_hours(today: dict) -> list[int]:
     return sorted(set(hours))
 
 
-def _rain_sentence(cur: dict, today: dict) -> str:
+def _rain_sentence(
+    cur: dict, today: dict, fmt_int: Callable[[int, nlp.Case], str]
+) -> str:
     if int(cur.get("weatherCode", -1)) in RAIN_CODES:
         return "Сейчас идёт дождь."
     hours = _rain_hours(today)
@@ -133,12 +130,14 @@ def _rain_sentence(cur: dict, today: dict) -> str:
         else:
             break
     if len(run) > 1:
-        return f"Дождь ожидается с {run[0]} до {run[-1]} часов."
+        return f"Дождь ожидается с {fmt_int(run[0], 'gent')} до {fmt_int(run[-1], 'gent')} часов."
     hour = run[0]
-    return f"Дождь ожидается в {hour} {nlp.plural(hour, 'час', 'часа', 'часов')}."
+    return f"Дождь ожидается в {fmt_int(hour, 'accs')} {nlp.plural(hour, 'час', 'часа', 'часов')}."
 
 
-def _format_weather(data: dict, area: str | None = None) -> str:
+def _format_weather(
+    data: dict, area: str | None, fmt_int: Callable[[int, nlp.Case], str]
+) -> str:
     cur = data["current_condition"][0]
     today = data["weather"][0]
     if area is None:
@@ -151,17 +150,19 @@ def _format_weather(data: dict, area: str | None = None) -> str:
     max_t = int(today["maxtempC"])
 
     parts = [
-        f"Сейчас в {area} {_format_temp(temp)} ",
+        f"Сейчас в {area} {fmt_int(temp, 'nomn')}",
         f"{nlp.plural(temp, 'градус', 'градуса', 'градусов')}, {_weather_desc(cur)}.",
     ]
     if feels != temp:
         parts.append(
-            f"Ощущается как {_format_temp(feels)} "
+            f"Ощущается как {fmt_int(feels, 'nomn')} "
             f"{nlp.plural(feels, 'градус', 'градуса', 'градусов')}."
         )
-    parts.append(f"Сегодня от {_format_temp(min_t)} до {_format_temp(max_t)} градусов.")
+    parts.append(
+        f"Сегодня от {fmt_int(min_t, 'gent')} до {fmt_int(max_t, 'gent')} градусов."
+    )
     parts.append(f"{_wind_strength(int(cur['windspeedKmph']))}.")
-    parts.append(_rain_sentence(cur, today))
+    parts.append(_rain_sentence(cur, today, fmt_int))
     return " ".join(parts)
 
 
@@ -177,17 +178,16 @@ def _fetch_location() -> dict | None:
     return data
 
 
-def _get(location: str, area: str | None = None) -> str:
+def _fetch_weather(location: str) -> dict:
     url = f"https://wttr.in/{location}?format=j1&lang=ru"
     try:
         with urllib.request.urlopen(url, timeout=15) as response:
-            data = json.load(response)
-        return _format_weather(data, area)
+            return json.load(response)
     except (OSError, ValueError, KeyError) as e:
         raise ActionError(e) from e
 
 
-async def get_weather(city: str | None = None) -> str:
+async def get_weather(city: str | None = None) -> AssistantResponse:
     if city:
         location = urllib.parse.quote(city)
         area = None
@@ -199,4 +199,10 @@ async def get_weather(city: str | None = None) -> str:
         else:
             location = f"{location_data['lat']},{location_data['lon']}"
             area = location_data["city"]
-    return await asyncio.to_thread(_get, location, area)
+    data = await asyncio.to_thread(_fetch_weather, location)
+    return AssistantResponse(
+        spoken=_format_weather(
+            data, area, lambda n, case: nlp.number_to_words(n, case)
+        ),
+        display=_format_weather(data, area, lambda n, _: str(n)),
+    )
