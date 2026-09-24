@@ -9,6 +9,10 @@ class Intent(enum.Enum):
     PlayMusic = enum.auto()
     NextTrack = enum.auto()
     PreviousTrack = enum.auto()
+    VolumeUp = enum.auto()
+    VolumeDown = enum.auto()
+    VolumeMuchUp = enum.auto()
+    VolumeMuchDown = enum.auto()
 
 KEYWORDS = {
     Intent.Weather: ["погода", "weather"],
@@ -16,6 +20,10 @@ KEYWORDS = {
     Intent.PlayMusic: ["включи", "play"],
     Intent.NextTrack: ["следующий", "дальше", "next"],
     Intent.PreviousTrack: ["предыдущий", "назад", "previous"],
+    Intent.VolumeUp: ["громче", "громко", "louder"],
+    Intent.VolumeDown: ["тише", "тихо", "quieter"],
+    Intent.VolumeMuchUp: ["погромче", "навали"],
+    Intent.VolumeMuchDown: ["потише", "приглуши"],
 }
 SIMILARITY_THRESHOLD = 0.7
 

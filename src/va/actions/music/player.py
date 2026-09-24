@@ -5,12 +5,12 @@ from va.actions import ActionError
 last_active_player: str | None = None
 
 
-def _run(verb: str) -> None:
+def _run(*args: str) -> None:
     try:
         command = ["playerctl"]
         if last_active_player:
-            command += ["--player", last_active_player]
-        command.append(verb)
+            command.extend(["--player", last_active_player])
+        command.extend(args)
         subprocess.run(command, check=True)
     except subprocess.CalledProcessError as e:
         raise ActionError(e)
@@ -26,6 +26,22 @@ def next_track() -> None:
 
 def previous_track() -> None:
     _run("previous")
+
+
+def volume_down() -> None:
+    _run("volume", "0.1-")
+
+
+def volume_up() -> None:
+    _run("volume", "0.1+")
+
+
+def volume_much_down() -> None:
+    _run("volume", "0.3-")
+
+
+def volume_much_up() -> None:
+    _run("volume", "0.3+")
 
 
 def pause_music() -> None:

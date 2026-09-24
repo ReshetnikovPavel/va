@@ -16,12 +16,7 @@ from silero_vad_notorch.utils_vad import VADIterator
 from va.actions import ActionError, AssistantResponse
 
 from . import intent
-from .actions.music.player import (
-    next_track,
-    pause_music,
-    play_music,
-    previous_track,
-)
+from .actions.music import player
 from .actions.weather.get import get_weather
 
 
@@ -89,13 +84,21 @@ async def _execute_action(action: intent.Intent) -> AssistantResponse | None:
         case intent.Intent.Weather:
             return await get_weather()
         case intent.Intent.PauseMusic:
-            return pause_music()
+            return player.pause_music()
         case intent.Intent.PlayMusic:
-            return play_music()
+            return player.play_music()
         case intent.Intent.NextTrack:
-            return next_track()
+            return player.next_track()
         case intent.Intent.PreviousTrack:
-            return previous_track()
+            return player.previous_track()
+        case intent.Intent.VolumeUp:
+            return player.volume_up()
+        case intent.Intent.VolumeDown:
+            return player.volume_down()
+        case intent.Intent.VolumeMuchUp:
+            return player.volume_much_up()
+        case intent.Intent.VolumeMuchDown:
+            return player.volume_much_down()
         case intent.Intent.Unknown:
             return AssistantResponse("Я глупая")
         case unhandled:
