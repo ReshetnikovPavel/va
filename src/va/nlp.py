@@ -1,7 +1,7 @@
 from typing import Literal
 
-from num2words import num2words as _num2words
-from pymorphy3.analyzer import MorphAnalyzer
+import num2words
+import pymorphy3.analyzer
 
 # Падежи русского языка (граммемы pymorphy).
 #   nomn — именительный: кто? что?            (стол, вода)
@@ -18,7 +18,7 @@ Case = Literal[
     "nomn", "gent", "datv", "accs", "ablt", "loct", "gen2", "loc2", "voct", "acc2"
 ]
 
-MORPH_ANALYZER = MorphAnalyzer()
+MORPH_ANALYZER = pymorphy3.analyzer.MorphAnalyzer()
 
 
 def plural(n: int, one: str, few: str, many: str) -> str:
@@ -55,5 +55,5 @@ def decline(word: str, case: Case) -> str:
 
 def number_to_words(n: int, case: Case) -> str:
     sign = "минус " if n < 0 else ""
-    tokens = _num2words(abs(n), lang="ru").split()
+    tokens = num2words.num2words(abs(n), lang="ru").split()
     return sign + " ".join(decline(token, case) for token in tokens)
