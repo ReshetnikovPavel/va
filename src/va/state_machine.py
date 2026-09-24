@@ -88,7 +88,7 @@ async def _execute_action(
         case intent.Intent.PauseMusic:
             return player.pause_music()
         case intent.Intent.PlayMusic:
-            return player.play_music()
+            return await player.play_music(data["song"])
         case intent.Intent.NextTrack:
             return player.next_track()
         case intent.Intent.PreviousTrack:

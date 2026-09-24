@@ -1,4 +1,5 @@
 import importlib.metadata
+import re
 import typing
 from typing import Literal
 
@@ -46,6 +47,17 @@ def restore_case(word: str, inflected: str) -> str:
 
 def is_cyrillic(word: str) -> bool:
     return any("\u0400" <= ch <= "\u04ff" for ch in word)
+
+
+def lemmatize(word: str) -> str:
+    return MORPH_ANALYZER.parse(word)[0].normal_form
+
+
+_PUNCTUATION_RE = re.compile(r"[^\w\s]")
+
+
+def remove_punctuation(s: str) -> str:
+    return _PUNCTUATION_RE.sub("", s)
 
 
 def decline(word: str, case: Case) -> str:
