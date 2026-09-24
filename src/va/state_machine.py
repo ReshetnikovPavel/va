@@ -13,11 +13,9 @@ from piper import PiperVoice
 from silero_vad_notorch.model import load_silero_vad
 from silero_vad_notorch.utils_vad import VADIterator
 
-from va.actions import ActionError, AssistantResponse
+from va.actions import ActionError, AssistantResponse, player, weather
 
 from . import intent, nlp
-from .actions.music import player
-from .actions.weather import get_weather
 
 
 class State(enum.Enum):
@@ -86,7 +84,7 @@ async def _execute_action(
 ) -> AssistantResponse | None:
     match action:
         case intent.Intent.Weather:
-            return await get_weather(data["location"])
+            return await weather.get_weather(data["location"])
         case intent.Intent.PauseMusic:
             return player.pause_music()
         case intent.Intent.NowPlaying:
