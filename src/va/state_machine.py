@@ -17,7 +17,7 @@ from va.actions import ActionError, AssistantResponse
 
 from . import intent
 from .actions.music import player
-from .actions.weather.get import get_weather
+from .actions.weather import get_weather
 
 
 class State(enum.Enum):
