@@ -87,6 +87,8 @@ async def _execute_action(
             return await get_weather(data["location"])
         case intent.Intent.PauseMusic:
             return player.pause_music()
+        case intent.Intent.NowPlaying:
+            return player.now_playing()
         case intent.Intent.PlayMusic:
             return await player.play_music(data["song"])
         case intent.Intent.NextTrack:

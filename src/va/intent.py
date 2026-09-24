@@ -11,6 +11,7 @@ class Intent(enum.Enum):
     PlayMusic = enum.auto()
     NextTrack = enum.auto()
     PreviousTrack = enum.auto()
+    NowPlaying = enum.auto()
     VolumeUp = enum.auto()
     VolumeDown = enum.auto()
     VolumeMuchUp = enum.auto()
@@ -39,6 +40,7 @@ KEYWORDS = {
         "play",
     ],
     Intent.Weather: ["погода", "weather"],
+    Intent.NowPlaying: ["играть"],
     Intent.VolumeMuchUp: ["погромче", "навали"],
     Intent.VolumeMuchDown: ["потише", "приглуши"],
     Intent.VolumeUp: ["громкий", "громко", "louder"],
