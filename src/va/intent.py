@@ -7,6 +7,7 @@ from va import nlp
 class Intent(enum.Enum):
     Unknown = enum.auto()
     Weather = enum.auto()
+    Time = enum.auto()
     PauseMusic = enum.auto()
     PlayMusic = enum.auto()
     NextTrack = enum.auto()
@@ -40,6 +41,7 @@ KEYWORDS = {
         "play",
     ],
     Intent.Weather: ["погода", "weather"],
+    Intent.Time: ["время", "time", "который"],
     Intent.NowPlaying: ["играть"],
     Intent.VolumeMuchUp: ["погромче", "навали"],
     Intent.VolumeMuchDown: ["потише", "приглуши"],
@@ -60,12 +62,13 @@ def classify(s: str) -> Intent:
     best_intent, best_ratio = Intent.Unknown, 0.0
     for intent, keywords in KEYWORDS.items():
         for keyword in keywords:
-            ratio = max(
-                difflib.SequenceMatcher(None, lemma, keyword).ratio()
-                for lemma in lemmas
-            )
-            if ratio > best_ratio:
-                best_intent, best_ratio = intent, ratio
+            if lemmas:
+                ratio = max(
+                    difflib.SequenceMatcher(None, lemma, keyword).ratio()
+                    for lemma in lemmas
+                )
+                if ratio > best_ratio:
+                    best_intent, best_ratio = intent, ratio
     if best_ratio > SIMILARITY_THRESHOLD:
         print(best_intent)
         return best_intent
@@ -78,7 +81,7 @@ PLAY_TRIGGERS = KEYWORDS[Intent.PlayMusic]
 
 def extract_data(s: str, intent: Intent) -> dict:
     match intent:
-        case Intent.Weather:
+        case Intent.Weather | Intent.Time:
             locations = nlp.extract_locations(s)
             location = locations[0] if locations else None
             return {"location": location}

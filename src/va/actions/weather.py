@@ -166,18 +166,6 @@ def _format_weather(
     return " ".join(parts)
 
 
-def _fetch_location() -> dict | None:
-    url = "http://ip-api.com/json/?fields=status,city,regionName,lat,lon&lang=ru"
-    try:
-        with urllib.request.urlopen(url, timeout=15) as response:
-            data = json.load(response)
-    except OSError, ValueError:
-        return None
-    if data.get("status") != "success":
-        return None
-    return data
-
-
 def _fetch_weather(location: str) -> dict:
     url = f"https://wttr.in/{location}?format=j1&lang=ru"
     try:
@@ -188,21 +176,11 @@ def _fetch_weather(location: str) -> dict:
 
 
 async def get_weather(city: str | None = None) -> AssistantResponse:
-    if city:
-        location = urllib.parse.quote(city)
-        area = None
-    else:
-        location_data = await asyncio.to_thread(_fetch_location)
-        if location_data is None:
-            location = ""
-            area = None
-        else:
-            location = f"{location_data['lat']},{location_data['lon']}"
-            area = location_data["city"]
+    location = urllib.parse.quote(city) if city else ""
     data = await asyncio.to_thread(_fetch_weather, location)
     return AssistantResponse(
         spoken=_format_weather(
-            data, area, lambda n, case: nlp.number_to_words(n, case)
+            data, None, lambda n, case: nlp.number_to_words(n, case)
         ),
-        display=_format_weather(data, area, lambda n, _: str(n)),
+        display=_format_weather(data, None, lambda n, _: str(n)),
     )
