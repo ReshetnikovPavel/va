@@ -56,23 +56,39 @@ def remove_punctuation(s: str) -> str:
     return _PUNCTUATION_RE.sub("", s)
 
 
-_LATIN_PHRASE_RE = re.compile(
-    r"[A-Za-z\u00C0-\u017F]+(?:[\s'\-/&.][A-Za-z\u00C0-\u017F]+)*"
+_JAPANESE_RE = re.compile(
+    r"[\u3040-\u309F\u30A0-\u30FF\u31F0-\u31FF\u4E00-\u9FFF]"
 )
+_LATIN_RE = re.compile(r"[A-Za-z\u00C0-\u017F]")
+_WORD_RE = re.compile(r"[^\W\d_]+(?:['\-][^\W\d_]+)*")
+
+
+def _word_lang(word: str) -> str:
+    if _JAPANESE_RE.search(word):
+        return "ja"
+    if is_cyrillic(word):
+        return "ru"
+    return "en"
 
 
 def split_by_script(text: str) -> list[tuple[str, str]]:
     parts: list[tuple[str, str]] = []
     pos = 0
-    for m in _LATIN_PHRASE_RE.finditer(text):
-        if m.start() > pos:
-            gap = text[pos : m.start()]
-            parts.append(("ru" if is_cyrillic(gap) else "en", gap))
-        parts.append(("en", m.group()))
+    for m in _WORD_RE.finditer(text):
+        lang = _word_lang(m.group())
+        chunk = text[pos : m.end()]
+        if parts and parts[-1][0] == lang:
+            parts[-1] = (lang, parts[-1][1] + chunk)
+        else:
+            parts.append((lang, chunk))
         pos = m.end()
     if pos < len(text):
         tail = text[pos:]
-        parts.append(("ru" if is_cyrillic(tail) else "en", tail))
+        lang = parts[-1][0] if parts else "en"
+        if parts and parts[-1][0] == lang:
+            parts[-1] = (lang, parts[-1][1] + tail)
+        else:
+            parts.append((lang, tail))
     return parts
 
 

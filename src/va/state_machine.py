@@ -42,8 +42,6 @@ SAMPLE_RATE = 16000
 CHANNELS = 1
 BLOCK_SIZE = 512
 
-LLM_MODEL_PATH = "models/llm/qwen2.5-1.5b-instruct-q4_k_m.gguf"
-
 WAKEWORD_BLOCK_SIZE = 32000
 # Per-model trigger thresholds (tuned against real recordings,
 # multi-piper-voice + owner-voice models):
@@ -80,9 +78,12 @@ async def _transcribe(stt: WhisperModel, audio: np.ndarray) -> str:
     return "".join(s.text for s in segments)
 
 
-async def _say(ru_tts: PiperVoice, en_tts: PiperVoice, text: str) -> None:
+async def _say(
+    ru_tts: PiperVoice, en_tts: PiperVoice, ja_tts: PiperVoice, text: str
+) -> None:
+    voices = {"ru": ru_tts, "en": en_tts, "ja": ja_tts}
     for language, part in nlp.split_by_script(text):
-        tts = en_tts if language == "en" else ru_tts
+        tts = voices.get(language, en_tts)
         for chunk in await asyncio.to_thread(tts.synthesize, part):
             await asyncio.to_thread(
                 sd.play,
@@ -152,6 +153,9 @@ async def run() -> None:
     )
     ru_tts = PiperVoice.load(Path("models", "piper", "ru_RU-irina-medium.onnx"))
     en_tts = PiperVoice.load(Path("models", "piper", "en_US-amy-medium.onnx"))
+    ja_tts = PiperVoice.load(
+        Path("models", "piper", "ja_JP-hi_fi_captain-medium.onnx")
+    )
 
     llm = Llama(
         model_path=os.path.join("models", "llm", "qwen2.5-1.5b-instruct-q4_k_m.gguf"),
@@ -253,7 +257,7 @@ async def run() -> None:
                         if response is not None:
                             print(response.display)
                             tts_task = asyncio.create_task(
-                                _say(ru_tts, en_tts, response.spoken)
+                                _say(ru_tts, en_tts, ja_tts, response.spoken)
                             )
                             state = State.Speaking
                             print(state)
