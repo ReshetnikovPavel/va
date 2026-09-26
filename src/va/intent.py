@@ -1,7 +1,7 @@
 import difflib
 import enum
 
-from va import nlp
+from va import nlp, slots
 
 
 class Intent(enum.Enum):
@@ -74,78 +74,3 @@ def classify(s: str) -> Intent:
         return best_intent
     print(Intent.Unknown)
     return Intent.Unknown
-
-
-PLAY_TRIGGERS = KEYWORDS[Intent.PlayMusic]
-
-
-def extract_data(s: str, intent: Intent) -> dict:
-    match intent:
-        case Intent.Weather | Intent.Time:
-            locations = nlp.extract_locations(s)
-            location = locations[0] if locations else None
-            return {"location": location}
-        case Intent.PlayMusic:
-            words = nlp.remove_punctuation(s).lower().split()
-            lemmas = [nlp.lemmatize(word) for word in words]
-            index = next(
-                (
-                    i
-                    for i, (word, lemma) in enumerate(zip(words, lemmas))
-                    if word in PLAY_TRIGGERS or lemma in PLAY_TRIGGERS
-                ),
-                None,
-            )
-            if index is not None:
-                words = words[index + 1 :]
-                lemmas = lemmas[index + 1 :]
-            query = " ".join(
-                word
-                for word, lemma in zip(words, lemmas)
-                if word not in PLAY_STOP_RAW
-                and lemma not in PLAY_STOP_LEMMAS
-                and word not in PLAY_STOP_LEMMAS
-            )
-            return {"song": query or None}
-    return {}
-
-
-PLAY_STOP_LEMMAS = {
-    "музыка",
-    "песня",
-    "песенка",
-    "трек",
-    "альбом",
-    "группа",
-    "композиция",
-    "пожалуйста",
-    "спасибо",
-    "пж",
-    "плиз",
-    "please",
-    "я",
-    "мы",
-    "мой",
-    "один",
-    "такой",
-    "какой",
-    "любой",
-    "какой-нибудь",
-    "снова",
-    "потом",
-    "сейчас",
-    "хотеть",
-    "слушать",
-    "послушать",
-    "выключить",
-    "стоп",
-    "пауза",
-    "хватить",
-    "следующий",
-    "предыдущий",
-    "далёкий",
-    "и",
-}
-
-# Слова с дефисами, которые remove_punctuation режет до неузнаваемости.
-PLAY_STOP_RAW = {"чтонибудь", "чтото", "какоенибудь", "какиенибудь"}

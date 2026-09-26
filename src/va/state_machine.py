@@ -1,14 +1,17 @@
 import asyncio
 import ctypes
 import enum
+import os
 import time
 from collections import deque
 from pathlib import Path
 
+import llama_cpp
 import numpy as np
 import sounddevice as sd
 from faster_whisper import WhisperModel
 from livekit.wakeword import WakeWordModel
+from llama_cpp import Llama
 from piper import PiperVoice
 from silero_vad_notorch.model import load_silero_vad
 from silero_vad_notorch.utils_vad import VADIterator
@@ -23,7 +26,7 @@ from va.actions import (
     time as time_action,
 )
 
-from . import intent, nlp
+from . import intent, nlp, slots
 
 
 class State(enum.Enum):
@@ -38,6 +41,8 @@ LISTENING_WAIT_SECS = 2
 SAMPLE_RATE = 16000
 CHANNELS = 1
 BLOCK_SIZE = 512
+
+LLM_MODEL_PATH = "models/llm/qwen2.5-1.5b-instruct-q4_k_m.gguf"
 
 WAKEWORD_BLOCK_SIZE = 32000
 # Per-model trigger thresholds (tuned against real recordings,
@@ -87,6 +92,18 @@ async def _say(ru_tts: PiperVoice, en_tts: PiperVoice, text: str) -> None:
             )
 
 
+def _extract_data(s: str, action: intent.Intent, llm: llama_cpp.Llama) -> dict:
+    match action:
+        case intent.Intent.Weather | intent.Intent.Time:
+            locations = slots.extract_locations(s)
+            location = locations[0] if locations else None
+            return {"location": location}
+        case intent.Intent.PlayMusic:
+            query = slots.extract_music_artist_and_or_title(llm, s)
+            return {"query": query}
+    return {}
+
+
 async def _execute_action(
     action: intent.Intent, data: dict
 ) -> AssistantResponse | None:
@@ -100,7 +117,7 @@ async def _execute_action(
         case intent.Intent.NowPlaying:
             return player.now_playing()
         case intent.Intent.PlayMusic:
-            return await player.play_music(data["song"])
+            return await player.play_music(data["query"])
         case intent.Intent.NextTrack:
             return player.next_track()
         case intent.Intent.PreviousTrack:
@@ -135,6 +152,13 @@ async def run() -> None:
     )
     ru_tts = PiperVoice.load(Path("models", "piper", "ru_RU-irina-medium.onnx"))
     en_tts = PiperVoice.load(Path("models", "piper", "en_US-amy-medium.onnx"))
+
+    llm = Llama(
+        model_path=os.path.join("models", "llm", "qwen2.5-1.5b-instruct-q4_k_m.gguf"),
+        n_ctx=512,
+        n_gpu_layers=0,
+        verbose=False,
+    )
 
     wakeword_samples = deque()
     vad_samples = []
@@ -218,7 +242,7 @@ async def run() -> None:
 
                         try:
                             action = intent.classify(transcribed)
-                            data = intent.extract_data(transcribed, action)
+                            data = _extract_data(transcribed, action, llm)
                             response = await _execute_action(action, data)
                         except ActionError as e:
                             print(e)
@@ -228,7 +252,9 @@ async def run() -> None:
 
                         if response is not None:
                             print(response.display)
-                            tts_task = asyncio.create_task(_say(ru_tts, en_tts, response.spoken))
+                            tts_task = asyncio.create_task(
+                                _say(ru_tts, en_tts, response.spoken)
+                            )
                             state = State.Speaking
                             print(state)
                         else:

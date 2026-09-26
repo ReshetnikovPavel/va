@@ -12,3 +12,4 @@ wheels/
 data/
 output/
 models/
+logs/
