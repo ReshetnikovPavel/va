@@ -15,18 +15,15 @@ def _format_spoken(hour: int, minute: int, area: str | None) -> str:
         if area is None
         else f"В {nlp.decline(area, 'loct')} сейчас "
     )
-    hour_word = nlp.number_to_words(hour, "nomn")
-    hour_unit = nlp.plural(hour, "час", "часа", "часов")
-    if minute:
-        minute_word = nlp.number_to_words(minute, "nomn")
-        minute_unit = nlp.plural(minute, "минута", "минуты", "минут")
-        return f"{head}{hour_word} {hour_unit} {minute_word} {minute_unit}."
-    return f"{head}{hour_word} {hour_unit} ровно."
+    time = nlp.time_to_words(hour, minute, 0, "nomn")
+    if minute != 0:
+        return f"{head}{time}."
+    return f"{head}{time} ровно."
 
 
 def _format_display(hour: int, minute: int, area: str | None) -> str:
     head = (
-        "Локальное время: "
+        "Сейчас на этом компьютере — "
         if area is None
         else f"В {nlp.decline(area, 'loct')} сейчас: "
     )

@@ -1,13 +1,14 @@
 import difflib
 import enum
 
-from va import nlp, slots
+from va import nlp
 
 
 class Intent(enum.Enum):
     Unknown = enum.auto()
     Weather = enum.auto()
     Time = enum.auto()
+    Timer = enum.auto()
     PauseMusic = enum.auto()
     PlayMusic = enum.auto()
     NextTrack = enum.auto()
@@ -21,6 +22,7 @@ class Intent(enum.Enum):
 
 # Интенты в порядке приоритета (точное совпадение по леммам).
 KEYWORDS = {
+    Intent.Timer: ["таймер", "timer"],
     Intent.PauseMusic: ["выключить", "пауза", "хватить", "стоп", "pause"],
     Intent.NextTrack: ["следующий", "далёкий", "next"],
     Intent.PreviousTrack: ["предыдущий", "назад", "previous"],

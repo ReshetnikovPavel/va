@@ -2,6 +2,8 @@ import typing
 
 import llama_cpp
 
+from va import models
+
 SYSTEM_PROMPT = (
     "Ты помогаешь извлечь название трека или исполнителя из реплики "
     "пользователя для поиска в YouTube Music. Отвечай строго одной строкой: "
@@ -18,13 +20,13 @@ EXAMPLES = """
 """
 
 
-def extract_music_artist_and_or_title(llm: llama_cpp.Llama, s: str) -> str | None:
+def extract_music_artist_and_or_title(s: str) -> str | None:
     user = f'{EXAMPLES}\n\nФраза: "{s}"\nОтвет:'
     messages: list[llama_cpp.ChatCompletionRequestMessage] = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": user},
     ]
-    out = llm.create_chat_completion(
+    out = models.LLM.create_chat_completion(
         messages=messages,
         temperature=0,
         max_tokens=32,
