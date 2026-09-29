@@ -2,6 +2,8 @@ import abc
 import asyncio
 import ctypes
 import queue
+import sys
+import threading
 import time
 from collections import deque
 
@@ -34,10 +36,16 @@ WAKEWORD_THRESHOLDS = {
 
 
 async def run() -> None:
+    text_queue: queue.Queue[str] = queue.Queue()
     samples_queue: queue.Queue[np.ndarray] = queue.Queue()
-    context = Context()
 
-    def callback(
+    def _stdin_reader():
+        for line in sys.stdin:
+            if line := line.strip():
+                text_queue.put(line)
+    threading.Thread(target=_stdin_reader, daemon=True).start()
+
+    def audio_callback(
         indata: np.ndarray,
         frames: int,
         time: ctypes._CData,
@@ -49,14 +57,15 @@ async def run() -> None:
         samplerate=SAMPLE_RATE,
         blocksize=BLOCK_SIZE,
         channels=CHANNELS,
-        callback=callback,
+        callback=audio_callback,
     ):
+        context = Context()
         state = Idle()
         print(state)
         while True:
             start_time = time.monotonic()
 
-            context.update_samples(samples_queue)
+            context.update(samples_queue, text_queue)
             old_state = state
             state = await old_state.next(context)
             if type(state) != type(old_state):
@@ -70,8 +79,9 @@ class Context:
     def __init__(self) -> None:
         self.wakeword_samples: deque[np.ndarray] = deque()
         self.samples: list[np.ndarray] = []
+        self.text_input: list[str] = []
 
-    def update_samples(self, samples: queue.Queue[np.ndarray]) -> None:
+    def update(self, samples: queue.Queue[np.ndarray], text: queue.Queue[str]) -> None:
         self.samples.clear()
         while True:
             try:
@@ -82,6 +92,11 @@ class Context:
                 self.wakeword_samples.popleft()
             self.wakeword_samples.append(block)
             self.samples.append(block)
+        while True:
+            try:
+                self.text_input.append(text.get_nowait())
+            except queue.Empty:
+                break
 
 
 class State(abc.ABC):
@@ -105,6 +120,10 @@ def _predict_wakeword(model: WakeWordModel, samples: deque[np.ndarray]) -> bool:
 
 class Idle(State):
     async def next(self, context: Context) -> State:
+        if context.text_input:
+            text = "\n".join(context.text_input)
+            context.text_input.clear()
+            return Processing(text)
         if _predict_wakeword(models.WAKEWORD, context.wakeword_samples):
             return Listening()
         return self
@@ -126,7 +145,7 @@ class Listening(State):
         self._record_voice(context.samples)
         if not self.is_recording and len(self.recording) > 0:
             recording = np.concat(self.recording).flatten()
-            return Processing(recording)
+            return Transcribing(recording)
         return self
 
     def _record_voice(self, samples: list[np.ndarray]) -> None:
@@ -143,6 +162,7 @@ class Listening(State):
             elif self.is_recording:
                 self.recording.append(sample)
 
+
 def _transcribe(audio: np.ndarray) -> str:
     segments, _info = models.STT.transcribe(
         audio,
@@ -154,13 +174,21 @@ def _transcribe(audio: np.ndarray) -> str:
     return "".join(s.text for s in segments)
 
 
-class Processing(State):
+class Transcribing(State):
     def __init__(self, recording: np.ndarray) -> None:
         self.recording = recording
 
     async def next(self, context: Context) -> State:
         text = _transcribe(self.recording)
-        if response := await va.pipeline.process(text):
+        return Processing(text)
+
+
+class Processing(State):
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+    async def next(self, context: Context) -> State:
+        if response := await va.pipeline.process(self.text):
             print(response.display)
             return Speaking(response)
         return Idle()
