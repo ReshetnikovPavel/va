@@ -1,4 +1,3 @@
-import asyncio
 import logging
 
 from va.actions import ActionError, AssistantResponse
@@ -12,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 async def process(text: str) -> AssistantResponse | None:
     action = intent.classify(text)
-    data = await _extract_data(text, action)
+    data = _extract_data(text, action)
     try:
         return await _execute_action(action, data)
     except ActionError as e:
@@ -20,18 +19,18 @@ async def process(text: str) -> AssistantResponse | None:
         return AssistantResponse("Произошла какая-то ошибка, простите")
 
 
-async def _extract_data(s: str, action: intent.Intent) -> dict:
+def _extract_data(s: str, action: intent.Intent) -> dict:
     match action:
         case Intent.Weather | Intent.Time:
-            locations = await asyncio.to_thread(slots.extract_locations, s)
+            locations = slots.extract_locations(s)
             location = locations[0] if locations else None
             return {"location": location}
         case Intent.Timer:
-            durations = await asyncio.to_thread(slots.extract_durations, s)
+            durations = slots.extract_durations(s)
             duration = durations[0] if durations else None
             return {"duration": duration}
         case Intent.PlayMusic:
-            query = await asyncio.to_thread(slots.extract_music_artist_and_or_title, s)
+            query = slots.extract_music_artist_and_or_title(s)
             return {"query": query}
     return {}
 
