@@ -8,18 +8,9 @@ import numpy as np
 import sounddevice as sd
 from livekit.wakeword import WakeWordModel
 
-from va.actions import (
-    ActionError,
-    AssistantResponse,
-    player,
-    weather,
-    timer,
-)
-from va.actions import (
-    time as time_action,
-)
+import va.pipeline
 
-from . import intent, models, nlp, slots
+from . import models, nlp
 
 
 class State(enum.Enum):
@@ -84,58 +75,7 @@ async def _say(text: str) -> None:
             )
 
 
-def _extract_data(s: str, action: intent.Intent) -> dict:
-    match action:
-        case intent.Intent.Weather | intent.Intent.Time:
-            locations = slots.extract_locations(s)
-            location = locations[0] if locations else None
-            return {"location": location}
-        case intent.Intent.Timer:
-            durations = slots.extract_durations(s)
-            duration = durations[0] if durations else None
-            return {"duration": duration}
-        case intent.Intent.PlayMusic:
-            query = slots.extract_music_artist_and_or_title(s)
-            return {"query": query}
-    return {}
-
-
-async def _execute_action(
-    action: intent.Intent, data: dict
-) -> AssistantResponse | None:
-    match action:
-        case intent.Intent.Weather:
-            return await weather.get_weather(data["location"])
-        case intent.Intent.Time:
-            return await time_action.get_time(data["location"])
-        case intent.Intent.Timer:
-            return await timer.set_timer(data["duration"])
-        case intent.Intent.PauseMusic:
-            return player.pause_music()
-        case intent.Intent.NowPlaying:
-            return player.now_playing()
-        case intent.Intent.PlayMusic:
-            return await player.play_music(data["query"])
-        case intent.Intent.NextTrack:
-            return player.next_track()
-        case intent.Intent.PreviousTrack:
-            return player.previous_track()
-        case intent.Intent.VolumeUp:
-            return player.volume_up()
-        case intent.Intent.VolumeDown:
-            return player.volume_down()
-        case intent.Intent.VolumeMuchUp:
-            return player.volume_much_up()
-        case intent.Intent.VolumeMuchDown:
-            return player.volume_much_down()
-        case intent.Intent.Unknown:
-            return AssistantResponse("Я глупая")
-        case unhandled:
-            raise RuntimeError(f"Unknown intent: `{unhandled}`")
-
-
 async def run() -> None:
-
     wakeword_samples = deque()
     vad_samples = []
     recording = []
@@ -216,16 +156,7 @@ async def run() -> None:
                         transcribed = stt_task.result()
                         print(transcribed)
 
-                        try:
-                            action = intent.classify(transcribed)
-                            data = _extract_data(transcribed, action)
-                            response = await _execute_action(action, data)
-                        except ActionError as e:
-                            print(e)
-                            response = AssistantResponse(
-                                "Произошла какая-то ошибка, простите"
-                            )
-
+                        response = await va.pipeline.process(transcribed)
                         if response is not None:
                             print(response.display)
                             tts_task = asyncio.create_task(_say(response.spoken))
