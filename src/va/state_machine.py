@@ -9,7 +9,6 @@ from collections import deque
 
 import numpy as np
 import sounddevice as sd
-from livekit.wakeword import WakeWordModel
 
 import va.pipeline
 from va.actions import AssistantResponse
@@ -43,6 +42,7 @@ async def run() -> None:
         for line in sys.stdin:
             if line := line.strip():
                 text_queue.put(line)
+
     threading.Thread(target=_stdin_reader, daemon=True).start()
 
     def audio_callback(
@@ -59,15 +59,15 @@ async def run() -> None:
         channels=CHANNELS,
         callback=audio_callback,
     ):
-        context = Context()
+        ctx = Context()
         state = Idle()
         print(state)
         while True:
             start_time = time.monotonic()
 
-            context.update(samples_queue, text_queue)
+            ctx.update(samples_queue, text_queue)
             old_state = state
-            state = await old_state.next(context)
+            state = await old_state.next(ctx)
             if type(state) != type(old_state):
                 print(state)
 
@@ -99,32 +99,51 @@ class Context:
                 break
 
 
-class State(abc.ABC):
-    @abc.abstractmethod
-    async def next(self, context: Context) -> State: ...
+is_talking_state = False
 
 
-def _predict_wakeword(model: WakeWordModel, samples: deque[np.ndarray]) -> bool:
-    if len(samples) * BLOCK_SIZE >= WAKEWORD_BLOCK_SIZE:
-        sample = np.concat(samples)
-        result = model.predict(sample)
+def _is_talking(sample: np.ndarray) -> bool:
+    global is_talking_state
+    vad_result = models.VAD(sample.T)
+    if vad_result:
+        if "start" in vad_result:
+            is_talking_state = True
+        elif "end" in vad_result:
+            is_talking_state = False
+    return is_talking_state
+
+
+def _predict_wakeword(ctx: Context) -> bool:
+    is_talking = False
+    for sample in ctx.samples:
+        if _is_talking(sample):
+            is_talking = True
+            break
+    if is_talking and len(ctx.wakeword_samples) * BLOCK_SIZE >= WAKEWORD_BLOCK_SIZE:
+        sample = np.concat(ctx.wakeword_samples)
+        result = models.WAKEWORD.predict(sample)
         is_wakeword = any(
             score > WAKEWORD_THRESHOLDS.get(name, 0.40)
             for name, score in result.items()
         )
         if is_wakeword:
-            samples.clear()
+            ctx.wakeword_samples.clear()
         return is_wakeword
     return False
 
 
+class State(abc.ABC):
+    @abc.abstractmethod
+    async def next(self, ctx: Context) -> State: ...
+
+
 class Idle(State):
-    async def next(self, context: Context) -> State:
-        if context.text_input:
-            text = "\n".join(context.text_input)
-            context.text_input.clear()
+    async def next(self, ctx: Context) -> State:
+        if ctx.text_input:
+            text = "\n".join(ctx.text_input)
+            ctx.text_input.clear()
             return Processing(text)
-        if _predict_wakeword(models.WAKEWORD, context.wakeword_samples):
+        if _predict_wakeword(ctx):
             return Listening()
         return self
 
@@ -135,14 +154,14 @@ class Listening(State):
         self.recording = []
         self.is_recording = False
 
-    async def next(self, context: Context) -> State:
+    async def next(self, ctx: Context) -> State:
         if (
             not self.is_recording
             and len(self.recording) == 0
             and time.monotonic() - self.start > LISTENING_WAIT_SECS
         ):
             return Idle()
-        self._record_voice(context.samples)
+        self._record_voice(ctx.samples)
         if not self.is_recording and len(self.recording) > 0:
             recording = np.concat(self.recording).flatten()
             return Transcribing(recording)
@@ -150,16 +169,8 @@ class Listening(State):
 
     def _record_voice(self, samples: list[np.ndarray]) -> None:
         for sample in samples:
-            vad_result = models.VAD(sample.T)
-            if vad_result:
-                if "start" in vad_result:
-                    print("start")
-                    self.recording.append(sample)
-                    self.is_recording = True
-                elif "end" in vad_result:
-                    print("end")
-                    self.is_recording = False
-            elif self.is_recording:
+            self.is_recording = _is_talking(sample)
+            if self.is_recording:
                 self.recording.append(sample)
 
 
@@ -178,7 +189,7 @@ class Transcribing(State):
     def __init__(self, recording: np.ndarray) -> None:
         self.recording = recording
 
-    async def next(self, context: Context) -> State:
+    async def next(self, ctx: Context) -> State:
         text = _transcribe(self.recording)
         return Processing(text)
 
@@ -187,7 +198,7 @@ class Processing(State):
     def __init__(self, text: str) -> None:
         self.text = text
 
-    async def next(self, context: Context) -> State:
+    async def next(self, ctx: Context) -> State:
         if response := await va.pipeline.process(self.text):
             print(response.display)
             return Speaking(response)
@@ -198,8 +209,8 @@ class Speaking(State):
     def __init__(self, response: AssistantResponse) -> None:
         self.tts_task = asyncio.create_task(_say(response.spoken))
 
-    async def next(self, context: Context) -> State:
-        if _predict_wakeword(models.WAKEWORD, context.wakeword_samples):
+    async def next(self, ctx: Context) -> State:
+        if _predict_wakeword(ctx):
             self.tts_task.cancel()
             sd.stop()
             return Listening()
