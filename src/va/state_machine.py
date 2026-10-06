@@ -99,26 +99,14 @@ class Context:
                 break
 
 
-is_talking_state = False
-
-
-def _is_talking(sample: np.ndarray) -> bool:
-    global is_talking_state
-    vad_result = models.VAD(sample.T)
-    if vad_result:
-        if "start" in vad_result:
-            is_talking_state = True
-        elif "end" in vad_result:
-            is_talking_state = False
-    return is_talking_state
-
-
 def _predict_wakeword(ctx: Context) -> bool:
     is_talking = False
     for sample in ctx.samples:
-        if _is_talking(sample):
+        models.VAD(sample.T)
+        if models.VAD.triggered:
             is_talking = True
             break
+
     if is_talking and len(ctx.wakeword_samples) * BLOCK_SIZE >= WAKEWORD_BLOCK_SIZE:
         sample = np.concat(ctx.wakeword_samples)
         result = models.WAKEWORD.predict(sample)
@@ -129,6 +117,7 @@ def _predict_wakeword(ctx: Context) -> bool:
         if is_wakeword:
             ctx.wakeword_samples.clear()
         return is_wakeword
+
     return False
 
 
@@ -152,26 +141,24 @@ class Listening(State):
     def __init__(self) -> None:
         self.start = time.monotonic()
         self.recording = []
-        self.is_recording = False
 
     async def next(self, ctx: Context) -> State:
         if (
-            not self.is_recording
-            and len(self.recording) == 0
+            not models.VAD.triggered
+            and not self.recording
             and time.monotonic() - self.start > LISTENING_WAIT_SECS
         ):
             return Idle()
-        self._record_voice(ctx.samples)
-        if not self.is_recording and len(self.recording) > 0:
+
+        for sample in ctx.samples:
+            models.VAD(sample.T)
+            if models.VAD.triggered:
+                self.recording.append(sample)
+
+        if not models.VAD.triggered and self.recording:
             recording = np.concat(self.recording).flatten()
             return Transcribing(recording)
         return self
-
-    def _record_voice(self, samples: list[np.ndarray]) -> None:
-        for sample in samples:
-            self.is_recording = _is_talking(sample)
-            if self.is_recording:
-                self.recording.append(sample)
 
 
 def _transcribe(audio: np.ndarray) -> str:
