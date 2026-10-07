@@ -1,5 +1,13 @@
 import asyncio
 
-from .state_machine import run
+from . import state_machine
+from .actions import timer
 
-asyncio.run(run())
+
+async def main() -> None:
+    async with asyncio.TaskGroup() as tasks:
+        tasks.create_task(timer.run_daemon())
+        tasks.create_task(state_machine.run())
+
+
+asyncio.run(main())

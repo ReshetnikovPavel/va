@@ -1,3 +1,4 @@
+import va.actions.player
 import abc
 import asyncio
 import ctypes
@@ -22,12 +23,6 @@ CHANNELS = 1
 BLOCK_SIZE = 512
 
 WAKEWORD_BLOCK_SIZE = 32000
-# Per-model trigger thresholds (tuned against real recordings,
-# multi-piper-voice + owner-voice models):
-#   ada_ru - Russian "Ада": 10/10 owner clips >= 0.415, worst negative 0.185,
-#            English "Ada" cross-trigger max 0.320 -> use 0.35.
-#   ada_en - English "Ada": 6/6 owner clips >= 0.505, worst negative 0.162,
-#            Russian "Ада" cross-trigger max 0.143 -> use 0.35.
 WAKEWORD_THRESHOLDS = {
     "ada_ru": 0.40,
     "ada_en": 0.40,

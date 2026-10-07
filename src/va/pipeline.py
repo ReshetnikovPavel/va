@@ -42,7 +42,9 @@ async def _execute_action(intent: Intent, data: dict) -> AssistantResponse | Non
         case Intent.Time:
             return await time.get_time(data["location"])
         case Intent.Timer:
-            return await timer.set_timer(data["duration"])
+            return timer.set_timer(data["duration"])
+        case Intent.Timers:
+            return timer.get_timers()
         case Intent.PauseMusic:
             return player.pause_music()
         case Intent.NowPlaying:

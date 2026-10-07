@@ -9,6 +9,7 @@ class Intent(enum.Enum):
     Weather = enum.auto()
     Time = enum.auto()
     Timer = enum.auto()
+    Timers = enum.auto()
     PauseMusic = enum.auto()
     PlayMusic = enum.auto()
     NextTrack = enum.auto()
@@ -22,6 +23,7 @@ class Intent(enum.Enum):
 
 # Интенты в порядке приоритета (точное совпадение по леммам).
 KEYWORDS = {
+    Intent.Timers: ["таймеры", "timers"],
     Intent.Timer: ["таймер", "timer"],
     Intent.PauseMusic: ["выключить", "пауза", "хватить", "стоп", "pause"],
     Intent.NextTrack: ["следующий", "далёкий", "next"],
