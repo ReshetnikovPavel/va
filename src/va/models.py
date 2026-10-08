@@ -1,3 +1,4 @@
+import laya
 import importlib.metadata
 import os
 from pathlib import Path
@@ -52,3 +53,5 @@ NATASHA_EMBEDDING = natasha.NewsEmbedding()
 NATASHA_MORPH_TAGGER = natasha.NewsMorphTagger(NATASHA_EMBEDDING)
 NATASHA_SYNTAX_PARSER = natasha.NewsSyntaxParser(NATASHA_EMBEDDING)
 NATASHA_NER_TAGGER = natasha.NewsNERTagger(NATASHA_EMBEDDING)
+
+LAYA_ROUTER = laya.Router(preload=True, lang_guess="ru")

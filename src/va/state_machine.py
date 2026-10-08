@@ -1,4 +1,3 @@
-import va.actions.player
 import abc
 import asyncio
 import ctypes
@@ -11,6 +10,7 @@ from collections import deque
 import numpy as np
 import sounddevice as sd
 
+import va.actions.player
 import va.pipeline
 from va.actions import AssistantResponse
 

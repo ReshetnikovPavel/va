@@ -1,7 +1,6 @@
-import difflib
 import enum
 
-from va import nlp
+import va.models
 
 
 class Intent(enum.Enum):
@@ -20,61 +19,92 @@ class Intent(enum.Enum):
     VolumeMuchUp = enum.auto()
     VolumeMuchDown = enum.auto()
 
-
-# Интенты в порядке приоритета (точное совпадение по леммам).
-KEYWORDS = {
-    Intent.Timers: ["таймеры", "timers"],
-    Intent.Timer: ["таймер", "timer"],
-    Intent.PauseMusic: ["выключить", "пауза", "хватить", "стоп", "pause"],
-    Intent.NextTrack: ["следующий", "далёкий", "next"],
-    Intent.PreviousTrack: ["предыдущий", "назад", "previous"],
-    Intent.PlayMusic: [
-        "включить",
-        "включать",
-        "поставить",
-        "постав",
-        "сыграть",
-        "запустить",
-        "завести",
-        "врубить",
-        "врубать",
-        "давать",
-        "дать",
-        "послушать",
-        "слушать",
-        "play",
-    ],
-    Intent.Weather: ["погода", "weather"],
-    Intent.Time: ["время", "time", "который"],
-    Intent.NowPlaying: ["играть"],
-    Intent.VolumeMuchUp: ["погромче", "навали"],
-    Intent.VolumeMuchDown: ["потише", "приглуши"],
-    Intent.VolumeUp: ["громкий", "громко", "louder"],
-    Intent.VolumeDown: ["тихий", "тихо", "quieter"],
-}
-SIMILARITY_THRESHOLD = 0.7
-
+CONFIDENCE_THRESHOLD = 0.55
 
 def classify(s: str) -> Intent:
-    words = nlp.remove_punctuation(s).lower().split()
-    lemmas = [nlp.lemmatize(word) for word in words]
-    for intent, keywords in KEYWORDS.items():
-        for keyword in keywords:
-            if keyword in lemmas or keyword in words:
-                print(intent)
-                return intent
-    best_intent, best_ratio = Intent.Unknown, 0.0
-    for intent, keywords in KEYWORDS.items():
-        for keyword in keywords:
-            if lemmas:
-                ratio = max(
-                    difflib.SequenceMatcher(None, lemma, keyword).ratio()
-                    for lemma in lemmas
-                )
-                if ratio > best_ratio:
-                    best_intent, best_ratio = intent, ratio
-    if best_ratio > SIMILARITY_THRESHOLD:
-        print(best_intent)
-        return best_intent
-    print(Intent.Unknown)
-    return Intent.Unknown
+    result = va.models.LAYA_ROUTER.predict(
+        s,
+        {
+            "intent": {
+                "type": "choice",
+                "instructions": (
+                    "Реплика пользователя голосовому ассистенту. Выбери ровно одну "
+                    "команду из списка; если команды нет в списке или это не команда, "
+                    "выбери «другое»."
+                ),
+                "criteria": {
+                    "таймеры": (
+                        "узнать про активные таймеры: какие идут, сколько их, "
+                        "сколько осталось"
+                    ),
+                    "таймер": (
+                        "поставить таймер с длительностью: «на пять минут», "
+                        "«через полчаса», «таймер на две минуты»"
+                    ),
+                    "пауза": (
+                        "выключить музыку или поставить её на паузу: «хватит», "
+                        "«стоп», «пауза», «выключи»"
+                    ),
+                    "следующий трек": (
+                        "переключить на следующий трек или песню, «next»"
+                    ),
+                    "предыдущий трек": (
+                        "переключить на предыдущий трек, вернуться назад, «previous»"
+                    ),
+                    "музыка": (
+                        "включить, поставить, сыграть песню, трек, альбом или "
+                        "исполнителя — по названию или запросу"
+                    ),
+                    "погода": (
+                        "узнать погоду, температуру, дождь, ветер, что за окном"
+                    ),
+                    "время": "узнать текущее время: «сколько времени», «который час»",
+                    "что играет": "узнать, какая песня или трек сейчас играет",
+                    "намного громче": "сильно прибавить громкость: «погромче», «навали»",
+                    "намного тише": "сильно убавить громкость: «потише», «приглуши»",
+                    "громче": "прибавить громкость: «громче», louder",
+                    "тише": "убавить громкость: «тише», quieter",
+                    "другое": (
+                        "всё остальное: приветствия, вопросы и просьбы, не "
+                        "перечисленные выше"
+                    ),
+                },
+            }
+        },
+    )
+    ans = result["answers"]["intent"]
+    choice = ans["choice"]
+    confidence = ans.get("answer_confidence", ans.get("confidence", 1.0))
+    if confidence < CONFIDENCE_THRESHOLD:
+        return Intent.Unknown
+    match choice:
+        case "таймеры":
+            return Intent.Timers
+        case "таймер":
+            return Intent.Timer
+        case "музыка":
+            return Intent.PlayMusic
+        case "погода":
+            return Intent.Weather
+        case "время":
+            return Intent.Time
+        case "следующий трек":
+            return Intent.NextTrack
+        case "предыдущий трек":
+            return Intent.PreviousTrack
+        case "пауза":
+            return Intent.PauseMusic
+        case "что играет":
+            return Intent.NowPlaying
+        case "громче":
+            return Intent.VolumeUp
+        case "тише":
+            return Intent.VolumeDown
+        case "намного громче":
+            return Intent.VolumeMuchUp
+        case "намного тише":
+            return Intent.VolumeMuchDown
+        case "другое":
+            return Intent.Unknown
+        case _:
+            raise RuntimeError(f"Unknown laya choice `{choice}`")

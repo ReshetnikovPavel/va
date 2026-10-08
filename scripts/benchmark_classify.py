@@ -5,20 +5,26 @@
 - llm        — Qwen (GGUF) few-shot, ответ модели берём как есть;
 - llm-gate   — llm + гейт: распознаём метку из закрытого списка, иначе Unknown;
 - llm-gate-15b / llm-gate-3b — то же на Qwen2.5-1.5B / Qwen2.5-3B;
+- llm-gate-q35-08b / llm-gate-q35-2b — то же на Qwen3.5-0.8B / Qwen3.5-2B;
 - llm-tools / llm-tools-15b / llm-tools-3b — tool calling (Qwen умеет):
   модель сама выбирает функцию (play_music/get_weather/...) и слоты,
-  отсутствие вызова = Unknown;
+  отсутствие вызова = Unknown; + llm-tools-q35-08b / llm-tools-q35-2b;
 - laya       — System-1 decision-модель (choice) в рантайме laya;
-- laya-gate  — laya + confidence-гейт: если уверенность ниже порога, Unknown.
+- laya-gate  — laya + confidence-гейт (порог 0.6); laya-gate-XX — свой порог;
+- emb        — эмбеддинги (multilingual-e5-small) + ближайший прототип,
+  всегда что-то возвращает; emb-gate — с порогом косинуса (Unknown ниже него);
+  emb-gate-XX — свой порог.
 
 Одной строкой таблица + время (avg/p95 на кейс, сумма) каждой модели,
 подробно — построчный разбор и recall по интентам.
 
-Запуск (llama-cpp-python и наташа — зависимости проекта, laya — оверлей):
+Запуск (llama-cpp-python и наташа — зависимости проекта, laya и
+sentence-transformers — оверлеи):
   uv run --project . \
       --index https://download.pytorch.org/whl/cpu \
       --with "torch==2.14.0+cpu" --with "transformers>=5.17.0" \
       --with "laya" --with "laya[onnx]>=0.3.20" \
+      --with "sentence-transformers>=3.4.0" \
       python scripts/benchmark_classify.py
 
 Категория по кейсу (классификатор всегда возвращает Intent):
@@ -49,6 +55,8 @@ LLM_MODELS = {
     "anchor": f"{MODELS_DIR}/llm/qwen2.5-0.5b-instruct-q4_k_m.gguf",
     "q25-15b": f"{MODELS_DIR}/llm/qwen2.5-1.5b-instruct-q4_k_m.gguf",
     "q25-3b": f"{MODELS_DIR}/llm/qwen2.5-3b-instruct-q4_k_m.gguf",
+    "q35-08b": f"{MODELS_DIR}/llm/Qwen3.5-0.8B-Q4_K_M.gguf",
+    "q35-2b": f"{MODELS_DIR}/llm/Qwen3.5-2B-Q4_K_M.gguf",
 }
 
 # Закрытый список меток: (русская метка -> Intent). Классификатор отвечает
@@ -382,6 +390,127 @@ def make_laya_classifier(conf_thr: float | None = None):
     return classify
 
 
+# Прототипы для эмбеддинг-классификатора (намеренно не пересекаются с CASES).
+# Произносимая фраза -> ближайший прототип по косинусу.
+EMBED_EXAMPLES: dict[Intent, list[str]] = {
+    Intent.PlayMusic: [
+        "включи музыку",
+        "поставь трек",
+        "сыграй песню",
+        "давай послушаем музыку",
+        "вруби что-нибудь",
+        "play a song",
+    ],
+    Intent.Weather: [
+        "какая погода сегодня",
+        "сколько градусов на улице",
+        "будет ли дождь завтра",
+        "what's the weather like",
+        "температура в городе",
+    ],
+    Intent.Time: [
+        "который час",
+        "сколько сейчас времени",
+        "во сколько время",
+        "what time is it",
+        "сколько время в лондоне",
+    ],
+    Intent.NextTrack: [
+        "переключи на следующую песню",
+        "следующий трек пожалуйста",
+        "включи следующее",
+        "next song",
+        "листай дальше",
+    ],
+    Intent.PreviousTrack: [
+        "верни предыдущую песню",
+        "предыдущий трек",
+        "назад на прошлую",
+        "play the previous song",
+    ],
+    Intent.PauseMusic: [
+        "останови музыку",
+        "пауза",
+        "выключи трек",
+        "помолчи",
+        "pause the music",
+        "стоп",
+    ],
+    Intent.NowPlaying: [
+        "какая песня сейчас играет",
+        "что за трек играет",
+        "что звучит",
+        "what song is this",
+        "какая сейчас композиция",
+    ],
+    Intent.VolumeUp: [
+        "сделай звук громче",
+        "прибавь громкость",
+        "громко",
+        "volume up",
+        "усиль звук",
+    ],
+    Intent.VolumeDown: [
+        "сделай звук тише",
+        "убавь громкость",
+        "тихо",
+        "lower the volume",
+        "приглуши звук",
+    ],
+    Intent.VolumeMuchUp: [
+        "погромче сильно",
+        "сделай максимально громко",
+        "навались на звук",
+        "намного громче",
+        "вруби на всю",
+    ],
+    Intent.VolumeMuchDown: [
+        "сделай очень тихо",
+        "почти без звука",
+        "намного тише",
+        "сделай шёпотом",
+    ],
+}
+
+_EMB_PROTOTYPES: dict | None = None
+
+
+def _get_emb_prototypes():
+    """(модель, матрица прототипов (N, d), метки (N,)) — кешируется."""
+    global _EMB_PROTOTYPES
+    if _EMB_PROTOTYPES is None:
+        from sentence_transformers import SentenceTransformer
+
+        model = SentenceTransformer("intfloat/multilingual-e5-small")
+        passages = [
+            f"passage: {e}"
+            for intent in EMBED_EXAMPLES
+            for e in EMBED_EXAMPLES[intent]
+        ]
+        labels = [
+            intent
+            for intent in EMBED_EXAMPLES
+            for _ in EMBED_EXAMPLES[intent]
+        ]
+        emb = model.encode(passages, normalize_embeddings=True)
+        _EMB_PROTOTYPES = (model, emb, labels)
+    return _EMB_PROTOTYPES
+
+
+def make_emb_classifier(threshold: float | None = 0.55):
+    model, emb, labels = _get_emb_prototypes()
+
+    def classify(s: str) -> Intent:
+        q = model.encode([f"query: {s}"], normalize_embeddings=True)[0]
+        scores = emb @ q  # (N,)
+        best = int(scores.argmax())
+        if threshold is not None and scores[best] < threshold:
+            return Intent.Unknown
+        return labels[best]
+
+    return classify
+
+
 def summarize(results: list[Intent]) -> dict[str, float]:
     counts = {"exact": 0, "wrong": 0, "refused": 0, "fpresume": 0}
     for got, (_, expected) in zip(results, CASES):
@@ -448,12 +577,48 @@ def main() -> None:
         "llm-tools-3b": lambda: make_llm_tools_classifier(
             _get_llm(LLM_MODELS["q25-3b"])
         ),
+        "llm-gate-q35-08b": lambda: make_llm_classifier(
+            _get_llm(LLM_MODELS["q35-08b"]), verified=True
+        ),
+        "llm-gate-q35-2b": lambda: make_llm_classifier(
+            _get_llm(LLM_MODELS["q35-2b"]), verified=True
+        ),
+        "llm-tools-q35-08b": lambda: make_llm_tools_classifier(
+            _get_llm(LLM_MODELS["q35-08b"])
+        ),
+        "llm-tools-q35-2b": lambda: make_llm_tools_classifier(
+            _get_llm(LLM_MODELS["q35-2b"])
+        ),
         "laya": lambda: make_laya_classifier(),
         "laya-gate": lambda: make_laya_classifier(conf_thr=0.6),
+        "emb": lambda: make_emb_classifier(threshold=None),
+        "emb-gate": lambda: make_emb_classifier(threshold=0.55),
     }
+    # Динамические варианты: laya-gate-05 / laya-gate-70 — порог как проценты.
+    laya_gate_re = re.compile(r"laya-gate-(\d+)$")
+    # Динамические варианты: emb-gate-55 (эмбеддинги, порог косинуса в %).
+    emb_gate_re = re.compile(r"emb-gate-(\d+)$")
+
+    def variant(name: str):
+        if name in selected:
+            return selected[name]()
+        m = laya_gate_re.match(name)
+        if m:
+            return make_laya_classifier(conf_thr=int(m.group(1)) / 100)
+        m = emb_gate_re.match(name)
+        if m:
+            return make_emb_classifier(threshold=int(m.group(1)) / 100)
+        raise KeyError(name)
+
     names = list(selected)
     if args:
-        unknown = [n for n in args if n not in selected]
+        unknown = [
+            n
+            for n in args
+            if n not in selected
+            and not laya_gate_re.match(n)
+            and not emb_gate_re.match(n)
+        ]
         if unknown:
             print(f"неизвестные варианты: {unknown}; доступны: {', '.join(selected)}")
         else:
@@ -463,7 +628,7 @@ def main() -> None:
           f" {'score':>6} {'avg_ms':>7} {'p95_ms':>7} {'total_s':>7}")
     runs: dict[str, tuple[list[Intent], list[float]]] = {}
     for name in names:
-        results, times = run(selected[name]())
+        results, times = run(variant(name))
         runs[name] = (results, times)
         c = summarize(results)
         print(
@@ -473,7 +638,7 @@ def main() -> None:
             f"{sum(times):7.1f}"
         )
     print(f"\nметки: {LABEL_TEXT}")
-    if args and set(args).issubset(selected):
+    if args and all(n in selected or laya_gate_re.match(n) or emb_gate_re.match(n) for n in names):
         for name in names:
             results, _ = runs[name]
             print(f"\n=== {name} ===")
