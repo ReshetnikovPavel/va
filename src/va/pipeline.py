@@ -1,22 +1,53 @@
 import logging
+import typing
+
+import llama_cpp
 
 from va.actions import ActionError, AssistantResponse
 
-from . import intent, slots
+from . import intent, models, slots
 from .actions import player, time, timer, weather
 from .intent import Intent
 
 logger = logging.getLogger(__name__)
 
+SYSTEM_PROMPT = 'Ты - голосовая ассистентка по имени Ада. Ты создана для выполнения простых задач, таких как ставить таймер и говорить погоду. '
 
-async def process(text: str) -> AssistantResponse | None:
-    action = intent.classify(text)
-    data = _extract_data(text, action)
-    try:
-        return await _execute_action(action, data)
-    except ActionError as e:
-        logger.exception(e)
-        return AssistantResponse("Произошла какая-то ошибка, простите")
+
+class Pipeline:
+    def __init__(self) -> None:
+        self.messages: list[llama_cpp.ChatCompletionRequestMessage] = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+        ]
+
+    async def process(self, text: str) -> AssistantResponse | None:
+        self.messages.append({"role": "user", "content": text})
+
+        action = intent.classify(text)
+        data = _extract_data(text, action)
+
+        if action != Intent.Unknown:
+            try:
+                response = await _execute_action(action, data)
+            except ActionError as e:
+                logger.exception(e)
+                response = AssistantResponse("Произошла какая-то ошибка, простите")
+        else:
+            out = models.LLM.create_chat_completion(messages=self.messages)
+            out = typing.cast(llama_cpp.CreateChatCompletionResponse, out)
+            response = out["choices"][0]["message"]["content"]
+            assert response is not None
+            response = response.strip().splitlines()[0]
+            response = AssistantResponse(response)
+
+        if response is not None:
+            self.messages.append(
+                {
+                    "role": "assistant",
+                    "content": response.display or response.spoken,
+                }
+            )
+        return response
 
 
 def _extract_data(s: str, action: intent.Intent) -> dict:
@@ -63,7 +94,5 @@ async def _execute_action(intent: Intent, data: dict) -> AssistantResponse | Non
             return player.volume_much_up()
         case Intent.VolumeMuchDown:
             return player.volume_much_down()
-        case Intent.Unknown:
-            return AssistantResponse("Я глупая")
         case unhandled:
             raise RuntimeError(f"Unknown intent: `{unhandled}`")

@@ -54,7 +54,7 @@ async def run() -> None:
         channels=CHANNELS,
         callback=audio_callback,
     ):
-        ctx = Context()
+        ctx = Context(va.pipeline.Pipeline())
         state = Idle()
         print(state)
         while True:
@@ -71,10 +71,11 @@ async def run() -> None:
 
 
 class Context:
-    def __init__(self) -> None:
+    def __init__(self, pipeline: va.pipeline.Pipeline) -> None:
         self.wakeword_samples: deque[np.ndarray] = deque()
         self.samples: list[np.ndarray] = []
         self.text_input: list[str] = []
+        self.pipeline = pipeline
 
     def update(self, samples: queue.Queue[np.ndarray], text: queue.Queue[str]) -> None:
         self.samples.clear()
@@ -181,7 +182,7 @@ class Processing(State):
         self.text = text
 
     async def next(self, ctx: Context) -> State:
-        if response := await va.pipeline.process(self.text):
+        if response := await ctx.pipeline.process(self.text):
             print(response.display)
             return Speaking(response)
         return Idle()
