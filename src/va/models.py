@@ -12,6 +12,8 @@ import pymorphy3
 import silero_vad_notorch
 from pymorphy2 import analyzer as _pymorphy2_analyzer
 
+from va import decima
+
 WAKEWORD = livekit.wakeword.WakeWordModel(
     models=[
         Path("models", "wakeword", "ada_ru.onnx"),
@@ -55,3 +57,4 @@ NATASHA_SYNTAX_PARSER = natasha.NewsSyntaxParser(NATASHA_EMBEDDING)
 NATASHA_NER_TAGGER = natasha.NewsNERTagger(NATASHA_EMBEDDING)
 
 LAYA_ROUTER = laya.Router(preload=True, lang_guess="ru")
+DECIMA = decima.Decima(Path("models", "decima-base"))
