@@ -35,7 +35,7 @@ JA_TTS = piper.PiperVoice.load(
     Path("models", "piper", "ja_JP-hi_fi_captain-medium.onnx")
 )
 
-LLM = llama_cpp.Llama(
+QWEN_2_5_1_5B = llama_cpp.Llama(
     model_path=os.path.join("models", "llm", "qwen2.5-1.5b-instruct-q4_k_m.gguf"),
     n_ctx=512,
     n_gpu_layers=0,

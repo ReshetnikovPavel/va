@@ -56,7 +56,7 @@ async def run() -> None:
     ):
         ctx = Context(va.pipeline.Pipeline())
         state = Idle()
-        print(state)
+        print(type(state).__name__)
         while True:
             start_time = time.monotonic()
 
@@ -64,7 +64,7 @@ async def run() -> None:
             old_state = state
             state = await old_state.next(ctx)
             if type(state) != type(old_state):
-                print(state)
+                print(type(state).__name__)
 
             elapsed = time.monotonic() - start_time
             await asyncio.sleep(max(TICK_SECS - elapsed, 0))

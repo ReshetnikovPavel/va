@@ -26,7 +26,7 @@ def extract_music_artist_and_or_title(s: str) -> str | None:
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": user},
     ]
-    out = models.LLM.create_chat_completion(
+    out = models.QWEN_2_5_1_5B.create_chat_completion(
         messages=messages,
         temperature=0,
         max_tokens=32,

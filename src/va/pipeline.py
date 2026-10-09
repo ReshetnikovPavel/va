@@ -11,7 +11,7 @@ from .intent import Intent
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = 'Ты - голосовая ассистентка по имени Ада. Ты создана для выполнения простых задач, таких как ставить таймер и говорить погоду. '
+SYSTEM_PROMPT = 'Ты - голосовая ассистентка по имени Ада. Ты создана для выполнения простых задач, таких как ставить таймер и говорить погоду. Ты всегда говоришь о себе в женском роде: "я создана", "я думала", "я чувствовала". Не повторяй одни и те же по смыслу фразы.'
 
 
 class Pipeline:
@@ -24,7 +24,9 @@ class Pipeline:
         self.messages.append({"role": "user", "content": text})
 
         action = intent.classify(text)
+        print(action)
         data = _extract_data(text, action)
+        print(data)
 
         if action != Intent.Unknown:
             try:
@@ -33,7 +35,7 @@ class Pipeline:
                 logger.exception(e)
                 response = AssistantResponse("Произошла какая-то ошибка, простите")
         else:
-            out = models.LLM.create_chat_completion(messages=self.messages)
+            out = models.QWEN_2_5_1_5B.create_chat_completion(messages=self.messages)
             out = typing.cast(llama_cpp.CreateChatCompletionResponse, out)
             response = out["choices"][0]["message"]["content"]
             assert response is not None
