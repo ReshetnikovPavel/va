@@ -76,6 +76,7 @@ class Context:
         self.samples: list[np.ndarray] = []
         self.text_input: list[str] = []
         self.pipeline = pipeline
+        self.final_state_cls: type[Idle | Listening] = Idle
 
     def update(self, samples: queue.Queue[np.ndarray], text: queue.Queue[str]) -> None:
         self.samples.clear()
@@ -127,14 +128,17 @@ class Idle(State):
         if ctx.text_input:
             text = "\n".join(ctx.text_input)
             ctx.text_input.clear()
+            ctx.final_state_cls = Idle
             return Processing(text)
         if _predict_wakeword(ctx):
+            ctx.final_state_cls = Listening
             return Listening()
         return self
 
 
 class Listening(State):
     def __init__(self) -> None:
+        models.VAD.reset_states()
         self.start = time.monotonic()
         self.recording = []
 
@@ -174,6 +178,7 @@ class Transcribing(State):
 
     async def next(self, ctx: Context) -> State:
         text = _transcribe(self.recording)
+        print(text)
         return Processing(text)
 
 
@@ -185,7 +190,7 @@ class Processing(State):
         if response := await ctx.pipeline.process(self.text):
             print(response.display)
             return Speaking(response)
-        return Idle()
+        return ctx.final_state_cls()
 
 
 class Speaking(State):
@@ -198,7 +203,7 @@ class Speaking(State):
             sd.stop()
             return Listening()
         if self.tts_task.done():
-            return Idle()
+            return ctx.final_state_cls()
         return self
 
 

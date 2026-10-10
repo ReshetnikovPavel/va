@@ -1,9 +1,9 @@
-import laya
 import importlib.metadata
 import os
 from pathlib import Path
 
 import faster_whisper
+import laya
 import livekit.wakeword
 import llama_cpp
 import natasha
@@ -56,5 +56,5 @@ NATASHA_MORPH_TAGGER = natasha.NewsMorphTagger(NATASHA_EMBEDDING)
 NATASHA_SYNTAX_PARSER = natasha.NewsSyntaxParser(NATASHA_EMBEDDING)
 NATASHA_NER_TAGGER = natasha.NewsNERTagger(NATASHA_EMBEDDING)
 
-LAYA_ROUTER = laya.Router(preload=True, lang_guess="ru")
+# LAYA_ROUTER = laya.Router(preload=True, lang_guess="ru")
 DECIMA = decima.Decima(Path("models", "decima-base"))

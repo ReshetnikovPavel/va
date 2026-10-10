@@ -75,6 +75,7 @@ LLM_MODELS = {
     "q35-2b": f"{MODELS_DIR}/llm/Qwen3.5-2B-Q4_K_M.gguf",
     "q25-15b": f"{MODELS_DIR}/llm/qwen2.5-1.5b-instruct-q4_k_m.gguf",
     "q25-3b": f"{MODELS_DIR}/llm/qwen2.5-3b-instruct-q4_k_m.gguf",
+    "vikhr-q25-15b": f"{MODELS_DIR}/llm/Vikhr-Qwen-2.5-1.5b-Instruct-Q4_K_M.gguf",
 }
 
 PLAY_TRIGGERS = [
@@ -504,6 +505,7 @@ def main() -> None:
         "llm-sub-08b": lambda: make_song_extractor(_get_llm(LLM_MODELS["q35-08b"]), verified=True),
         "llm-sub-2b": lambda: make_song_extractor(_get_llm(LLM_MODELS["q35-2b"]), verified=True),
         "llm-sub-15b": lambda: make_song_extractor(_get_llm(LLM_MODELS["q25-15b"]), verified=True),
+        "llm-sub-vikhr": lambda: make_song_extractor(_get_llm(LLM_MODELS["vikhr-q25-15b"]), verified=True),
         "llm-sub-3b": lambda: make_song_extractor(_get_llm(LLM_MODELS["q25-3b"]), verified=True),
     }
     names = list(selected)

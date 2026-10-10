@@ -67,7 +67,7 @@ QUESTIONS = {
 
 
 def classify(s: str) -> Intent:
-    if False:
+    if True:
         question = decima.Question(
             QUESTIONS["intent"]["instructions"],
             QUESTIONS["intent"]["criteria"].keys(),
@@ -78,12 +78,12 @@ def classify(s: str) -> Intent:
         conf = max(decision.probs)
         if conf < CONFIDENCE_THRESHOLD_DECIMA:
             return Intent.Unknown
-    else:
-        result = va.models.LAYA_ROUTER.predict(s, QUESTIONS)
-        ans = result["answers"]["intent"]
-        choice = ans["choice"]
-        conf = ans.get("answer_confidence", ans.get("confidence", 1.0))
-        if conf < CONFIDENCE_THRESHOLD_LAYA:
-            return Intent.Unknown
+    # else:
+        # result = va.models.LAYA_ROUTER.predict(s, QUESTIONS)
+        # ans = result["answers"]["intent"]
+        # choice = ans["choice"]
+        # conf = ans.get("answer_confidence", ans.get("confidence", 1.0))
+        # if conf < CONFIDENCE_THRESHOLD_LAYA:
+        #     return Intent.Unknown
 
     return Intent(choice)
