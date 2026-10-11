@@ -179,6 +179,8 @@ class Transcribing(State):
     async def next(self, ctx: Context) -> State:
         text = _transcribe(self.recording)
         print(text)
+        if not text or text.isspace():
+            return ctx.final_state_cls()
         return Processing(text)
 
 
