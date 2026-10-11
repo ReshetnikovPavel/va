@@ -1,15 +1,18 @@
+import typing
 import importlib.metadata
 import os
 from pathlib import Path
 
 import faster_whisper
-import laya
+
+# import laya
 import livekit.wakeword
 import llama_cpp
 import natasha
 import piper
 import pymorphy3
 import silero_vad_notorch
+import transformers
 from pymorphy2 import analyzer as _pymorphy2_analyzer
 
 from va import decima
@@ -42,6 +45,8 @@ QWEN_2_5_1_5B = llama_cpp.Llama(
     verbose=False,
 )
 
+QWEN_2_5_1_5B_TOKENIZER = transformers.AutoTokenizer.from_pretrained("Qwen/Qwen2.5-1.5B-Instruct"),
+
 MORPH_ANALYZER = pymorphy3.analyzer.MorphAnalyzer()
 
 # natasha used pkg_resources which is deprecated. Monkey-patch
@@ -58,3 +63,9 @@ NATASHA_NER_TAGGER = natasha.NewsNERTagger(NATASHA_EMBEDDING)
 
 # LAYA_ROUTER = laya.Router(preload=True, lang_guess="ru")
 DECIMA = decima.Decima(Path("models", "decima-base"))
+
+FILL_MASK_RU_MODERN_BERT = transformers.pipeline(
+    "fill-mask",
+    model="deepvk/RuModernBERT-base",
+    device="cpu",
+)
